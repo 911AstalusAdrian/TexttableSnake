@@ -1,8 +1,8 @@
 import random
-
 from texttable import Texttable
 
 
+# Basic error class for the Board entity
 class BoardError(Exception):
     class ServiceError(Exception):
         def __init__(self, message=''):
@@ -12,27 +12,150 @@ class BoardError(Exception):
             return self._message
 
 
+'''
+The 'Board' class is a DIM x DIM matrix initialised with 0
+On this matrix, the apples are represented by values of -1, and the snake is represented by natural numbers.
+To be more precise, the snake's head has the value 1, and the rest of the body has the values 2, 3, and so on.
 
+Example:
+    
+    This is our initial state of the game:
+    +---+---+---+---+---+---+---+
+    | . |   |   |   |   |   | . |
+    +---+---+---+---+---+---+---+
+    |   | . |   |   |   | . |   |
+    +---+---+---+---+---+---+---+
+    | . |   | . | + |   |   |   |
+    +---+---+---+---+---+---+---+
+    |   | . |   | * |   |   |   |
+    +---+---+---+---+---+---+---+
+    |   |   |   | * | . |   | . |
+    +---+---+---+---+---+---+---+
+    |   | . |   |   |   |   |   |
+    +---+---+---+---+---+---+---+
+    |   |   |   |   |   |   |   |
+    +---+---+---+---+---+---+---+
+    
+    But, actually this is what the actual values of our matrix are:
+    +---+---+---+---+---+---+---+
+    |-1 | 0 | 0 | 0 | 0 | 0 |-1 |
+    +---+---+---+---+---+---+---+
+    | 0 |-1 | 0 | 0 | 0 |-1 | 0 |
+    +---+---+---+---+---+---+---+
+    |-1 | 0 |-1 | 1 | 0 | 0 | 0 |
+    +---+---+---+---+---+---+---+
+    | 0 |-1 | 0 | 2 | 0 | 0 | 0 |
+    +---+---+---+---+---+---+---+
+    | 0 | 0 | 0 | 3 |-1 | 0 |-1 |
+    +---+---+---+---+---+---+---+
+    | 0 |-1 | 0 | 0 | 0 | 0 | 0 |
+    +---+---+---+---+---+---+---+
+    | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+    +---+---+---+---+---+---+---+
+    
+    
+The action of moving the snake is quite simple:
+    - we change the coordinate of the snake's head based on the direction it's heading
+    - we 'drag' the rest of the body after the head, taking into consideration whether the head 'ate' an apple or not
+        - if it didn't eat an apple, the 'tail' of the snake is removed (because the snake doesn't grow)
+        - if it actually ate an apple, the 'tail' is kept
+        
+Example - the snake from above moving one cell up:
+
+    +---+---+---+---+---+---+---+   - initial state of the snake
+    |-1 | 0 | 0 | 0 | 0 | 0 |-1 |
+    +---+---+---+---+---+---+---+
+    | 0 |-1 | 0 | 0 | 0 |-1 | 0 |
+    +---+---+---+---+---+---+---+
+    |-1 | 0 |-1 | 1 | 0 | 0 | 0 |
+    +---+---+---+---+---+---+---+
+    | 0 |-1 | 0 | 2 | 0 | 0 | 0 |
+    +---+---+---+---+---+---+---+
+    | 0 | 0 | 0 | 3 |-1 | 0 |-1 |
+    +---+---+---+---+---+---+---+
+    | 0 |-1 | 0 | 0 | 0 | 0 | 0 |
+    +---+---+---+---+---+---+---+
+    | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+    +---+---+---+---+---+---+---+
+    
+    +---+---+---+---+---+---+---+   - the head is moved one cell 'up', hence the '1' value from the second row
+    |-1 | 0 | 0 | 0 | 0 | 0 |-1 |  
+    +---+---+---+---+---+---+---+ 
+    | 0 |-1 | 0 | 1 | 0 |-1 | 0 |
+    +---+---+---+---+---+---+---+
+    |-1 | 0 |-1 | 1 | 0 | 0 | 0 |
+    +---+---+---+---+---+---+---+
+    | 0 |-1 | 0 | 2 | 0 | 0 | 0 |
+    +---+---+---+---+---+---+---+
+    | 0 | 0 | 0 | 3 |-1 | 0 |-1 |
+    +---+---+---+---+---+---+---+
+    | 0 |-1 | 0 | 0 | 0 | 0 | 0 |
+    +---+---+---+---+---+---+---+
+    | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+    +---+---+---+---+---+---+---+
+    
+    +---+---+---+---+---+---+---+   - after the new head is placed correctly, the rest of the body is 'dragged' by 
+    |-1 | 0 | 0 | 0 | 0 | 0 |-1 |     increasing the values bigger than 0 by 1 (because the board is 0, the apples are -1,
+    +---+---+---+---+---+---+---+     the only values bigger than 0 are the snake's body
+    | 0 |-1 | 0 | 1 | 0 |-1 | 0 |
+    +---+---+---+---+---+---+---+
+    |-1 | 0 |-1 | 2 | 0 | 0 | 0 |
+    +---+---+---+---+---+---+---+
+    | 0 |-1 | 0 | 3 | 0 | 0 | 0 |
+    +---+---+---+---+---+---+---+
+    | 0 | 0 | 0 | 4 |-1 | 0 |-1 |
+    +---+---+---+---+---+---+---+
+    | 0 |-1 | 0 | 0 | 0 | 0 | 0 |
+    +---+---+---+---+---+---+---+
+    | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+    +---+---+---+---+---+---+---+
+    
+    +---+---+---+---+---+---+---+   - knowing that the snake's length doesn't change, because it didn't eat an apple,
+    |-1 | 0 | 0 | 0 | 0 | 0 |-1 |     the values from the board bigger than the snake's length (in this case, the 4 from
+    +---+---+---+---+---+---+---+     the 5th row) are reset to 0, meaning that cell is now empty.
+    | 0 |-1 | 0 | 1 | 0 |-1 | 0 |
+    +---+---+---+---+---+---+---+   - in the case when the snake's head went on an apple, the length of the snake is increased
+    |-1 | 0 |-1 | 2 | 0 | 0 | 0 |     by one, therefore no cell resetting is happening. Moreover, a new random apple is placed
+    +---+---+---+---+---+---+---+     on the board.
+    | 0 |-1 | 0 | 3 | 0 | 0 | 0 |
+    +---+---+---+---+---+---+---+
+    | 0 | 0 | 0 | 0 |-1 | 0 |-1 |
+    +---+---+---+---+---+---+---+
+    | 0 |-1 | 0 | 0 | 0 | 0 | 0 |
+    +---+---+---+---+---+---+---+
+    | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+    +---+---+---+---+---+---+---+
+
+        
+Furthermore, the snake's initial direction of movement is recorded in the 'self._direction' variable
+These directions lists of the coordinates X and Y depending on which the snake moves
+    - up: [-1, 0] meaning that the snake moves one row 'up' on the same column (the head's X coordinate is decreased by 1)
+    - down: [1, 0] meaning that the snake moves one row 'down' on the same column (the head's X coordinate is increased by 1)
+    - left: [0, -1] meaning that the snake moves on the same row, but one column to the left (the head's Y coordinate is decreased by 1)
+    - right: [0, 1] meaning that the snake moves on the same row, but one column to the right (the head's Y coordinate is increased by 1)
+'''
 class Board:
     def __init__(self, dimension, apples):
         self._rows = dimension
         self._columns = dimension
         self._apples = apples
-        self._direction = [-1, 0]
-        self._board = [[0 for col in range(self._columns)] for row in range(self._rows)]
-        self.set_snake()
-        self.set_initial_apples()
+        self._direction = [-1, 0]   # the initial direction of the snake, 'up'
+        self._board = [[0 for col in range(self._columns)] for row in range(self._rows)] #initializing the matrix with 0 values
+        self.set_snake()    # calling the function which places our snake on the board
+        self.set_initial_apples()   # calling the function that initialises our apples at the start of the game
 
     def get_direction(self):
         return self._direction
 
+    # This function is used when the snake's direction changes, setting the new direction
     def set_direction(self, new_direction):
         self._direction = new_direction
 
     def get_snake_head(self):
         """
-        Function to determine the coodinates of the snake's head on the board
+        Function to determine the coordinates of the snake's head on the board
         :return: tuple of the coordinates
+        The snake's head is represented by the value '1' from the board
         """
         for row in range(self._rows):
             for column in range(self._columns):
